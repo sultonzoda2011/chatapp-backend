@@ -9,6 +9,13 @@ dotenv.config()
 
 const app = express()
 
+// Create uploads directory if it doesn't exist
+const fs = require('fs')
+const uploadsDir = path.join(process.cwd(), 'uploads')
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true })
+}
+
 // Middleware
 app.use(cors())
 app.use(express.json())

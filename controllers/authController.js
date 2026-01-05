@@ -113,33 +113,65 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   const { username, fullname, email } = req.body
-  let avatarPath = req.file ? `/uploads/${req.file.filename}` : null
+  const avatarPath = req.file ? `/uploads/${req.file.filename}` : null
 
   try {
-    let query = 'UPDATE users SET username = $1, fullname = $2, email = $3'
-    let params = [username, fullname, email, req.user.id]
+    const fields = []
+    const params = []
+    let counter = 1
 
+    if (username) {
+      fields.push(`username = $${counter++}`)
+      params.push(username)
+    }
+    if (fullname) {
+      fields.push(`fullname = $${counter++}`)
+      params.push(fullname)
+    }
+    if (email) {
+      fields.push(`email = $${counter++}`)
+      params.push(email)
+    }
     if (avatarPath) {
-      query += ', avatar = $5 WHERE id = $4'
+      fields.push(`avatar = $${counter++}`)
       params.push(avatarPath)
-    } else {
-      query += ' WHERE id = $4'
     }
 
-    const updated = await db.query(
-      query + ' RETURNING id, username, fullname, email, avatar',
-      params,
-    )
+    if (fields.length === 0) {
+      const user = await db.query(
+        'SELECT id, username, fullname, email, avatar FROM users WHERE id = $1',
+        [req.user.id],
+      )
+      return res.json({
+        status: 'success',
+        message: 'No changes provided',
+        data: user.rows[0],
+      })
+    }
+
+    params.push(req.user.id)
+    const query = `UPDATE users SET ${fields.join(', ')} WHERE id = $${counter} RETURNING id, username, fullname, email, avatar`
+
+    const updated = await db.query(query, params)
+    
+    if (updated.rows.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found',
+      })
+    }
+
     res.json({
       status: 'success',
       message: 'Profile updated successfully',
       data: updated.rows[0],
     })
   } catch (err) {
-    console.error(err)
+    console.error('Update Profile Error:', err)
     res.status(500).json({
       status: 'error',
       message: 'Server error while updating profile',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined,
     })
   }
 }
