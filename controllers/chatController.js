@@ -132,3 +132,90 @@ exports.getChats = async (req, res) => {
         });
     }
 };
+
+exports.deleteMessage = async (req, res) => {
+    const { id } = req.params;
+    const currentUserId = req.user.id;
+
+    try {
+        // Check if message exists and user is the sender
+        const messageCheck = await db.query(
+            'SELECT from_user_id FROM messages WHERE id = $1',
+            [id]
+        );
+
+        if (messageCheck.rows.length === 0) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'Message not found'
+            });
+        }
+
+        if (messageCheck.rows[0].from_user_id !== currentUserId) {
+            return res.status(403).json({
+                status: 'error',
+                message: 'Access denied. Only the sender can delete this message'
+            });
+        }
+
+        // Delete the message
+        await db.query('DELETE FROM messages WHERE id = $1', [id]);
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Message deleted successfully'
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            status: 'error',
+            message: 'Server error while deleting message'
+        });
+    }
+};
+
+exports.updateMessage = async (req, res) => {
+    const { id } = req.params;
+    const { content } = req.body;
+    const currentUserId = req.user.id;
+
+    try {
+        // Check if message exists and user is the sender
+        const messageCheck = await db.query(
+            'SELECT from_user_id FROM messages WHERE id = $1',
+            [id]
+        );
+
+        if (messageCheck.rows.length === 0) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'Message not found'
+            });
+        }
+
+        if (messageCheck.rows[0].from_user_id !== currentUserId) {
+            return res.status(403).json({
+                status: 'error',
+                message: 'Access denied. Only the sender can edit this message'
+            });
+        }
+
+        // Update the message content
+        const result = await db.query(
+            'UPDATE messages SET content = $1 WHERE id = $2 RETURNING id, from_user_id, to_user_id, content, timestamp as date',
+            [content, id]
+        );
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Message updated successfully',
+            data: result.rows[0]
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            status: 'error',
+            message: 'Server error while updating message'
+        });
+    }
+};
