@@ -79,4 +79,115 @@ router.post('/send/:toUserId', auth, [
  */
 router.get('/chats', auth, chatController.getChats)
 
+/**
+ * @swagger
+ * /api/chat/messages/{id}:
+ *   delete:
+ *     summary: Delete a message
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Message ID
+ *     responses:
+ *       200:
+ *         description: Message deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Message deleted successfully
+ *       403:
+ *         description: Access denied - only sender can delete message
+ *       404:
+ *         description: Message not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/messages/:id', auth, [
+    param('id', 'Valid Message ID is required').isInt()
+], validate, chatController.deleteMessage);
+
+/**
+ * @swagger
+ * /api/chat/messages/{id}:
+ *   put:
+ *     summary: Update a message content
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Message ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - content
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 minLength: 1
+ *                 description: New message content
+ *                 example: Updated message text
+ *     responses:
+ *       200:
+ *         description: Message updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Message updated successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     from_user_id:
+ *                       type: integer
+ *                     to_user_id:
+ *                       type: integer
+ *                     content:
+ *                       type: string
+ *                     date:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Validation error - content cannot be empty
+ *       403:
+ *         description: Access denied - only sender can edit message
+ *       404:
+ *         description: Message not found
+ *       500:
+ *         description: Server error
+ */
+router.put('/messages/:id', auth, [
+    param('id', 'Valid Message ID is required').isInt(),
+    body('content', 'Message content is required and cannot be empty').not().isEmpty().trim()
+], validate, chatController.updateMessage);
+
 module.exports = router
