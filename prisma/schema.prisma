@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  fullname     String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  avatarUrl    String?  @map("avatar_url")
+  isOnline     Boolean  @default(false) @map("is_online")
+  lastSeenAt   DateTime @default(now()) @map("last_seen_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  memberships      ConversationMember[]
+  messages         Message[]
+  createdGroups    Conversation[]        @relation("ConversationCreator")
+
+  @@map("users")
+}
+
+model Conversation {
+  id        Int              @id @default(autoincrement())
+  type      ConversationType
+  name      String?
+  avatarUrl String?          @map("avatar_url")
+  creatorId Int?             @map("creator_id")
+  creator   User?            @relation("ConversationCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  members  ConversationMember[]
+  messages Message[]
+
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id             Int          @id @default(autoincrement())
+  conversationId Int          @map("conversation_id")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         Int          @map("user_id")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           MemberRole   @default(MEMBER)
+  joinedAt       DateTime     @default(now()) @map("joined_at")
+  lastReadAt     DateTime     @default(now()) @map("last_read_at")
+
+  @@unique([conversationId, userId])
+  @@map("conversation_members")
+}
+
+model Message {
+  id             Int          @id @default(autoincrement())
+  conversationId Int          @map("conversation_id")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       Int          @map("sender_id")
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content        String
+  editedAt       DateTime?    @map("edited_at")
+  deletedAt      DateTime?    @map("deleted_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
