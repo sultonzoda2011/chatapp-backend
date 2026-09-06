@@ -56,6 +56,16 @@ export class ChatController {
     return ok('Member added successfully', data);
   }
 
+  @Delete('conversations/:id/members/:userId')
+  async removeMember(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseIntPipe) conversationId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    const data = await this.chatService.removeMember(conversationId, user.sub, userId);
+    return ok('Member removed successfully', data);
+  }
+
   @Get('conversations/:id/messages')
   async getMessages(
     @CurrentUser() user: JwtPayload,

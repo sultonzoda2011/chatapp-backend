@@ -17,5 +17,6 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true
-  }
+  },
+  "include": ["src", "prisma"]
 }

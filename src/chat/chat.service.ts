@@ -121,9 +121,52 @@ export class ChatService {
 		})
 	}
 
+	async removeMember(
+		conversationId: number,
+		requesterId: number,
+		userId: number
+	) {
+		const requester = await this.assertMember(conversationId, requesterId)
+		if (requester.role === MemberRole.MEMBER) {
+			throw new ForbiddenException('Only owners or admins can remove members')
+		}
+
+		const conversation = await this.prisma.conversation.findUnique({
+			where: { id: conversationId },
+			include: { members: true }
+		})
+		if (!conversation) throw new NotFoundException('Conversation not found')
+		if (conversation.type !== ConversationType.GROUP) {
+			throw new ForbiddenException(
+				'Can only remove members from a group conversation'
+			)
+		}
+
+		const target = conversation.members.find(member => member.userId === userId)
+		if (!target) throw new NotFoundException('Member not found')
+		if (target.role === MemberRole.OWNER) {
+			throw new ForbiddenException('The group owner cannot be removed')
+		}
+		if (
+			requester.role === MemberRole.ADMIN &&
+			target.role === MemberRole.ADMIN
+		) {
+			throw new ForbiddenException('Admins cannot remove other admins')
+		}
+
+		await this.prisma.conversationMember.delete({ where: { id: target.id } })
+		return { conversationId, userId }
+	}
+
 	async listConversations(userId: number) {
 		const conversations = await this.prisma.conversation.findMany({
-			where: { members: { some: { userId } } },
+			where: {
+				members: { some: { userId } },
+				OR: [
+					{ type: ConversationType.GROUP },
+					{ type: ConversationType.DIRECT, messages: { some: {} } }
+				]
+			},
 			include: {
 				members: MEMBER_SELECT,
 				messages: { orderBy: { createdAt: 'desc' }, take: 1 }
