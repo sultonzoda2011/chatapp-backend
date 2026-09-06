@@ -11,6 +11,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto, UpdateProfileDto } from './dto/update-profile.dto';
+import { CloudinaryService } from '../common/cloudinary.service';
+import type { UploadedImageFile } from '../common/uploaded-file';
 
 const SALT_ROUNDS = 10;
 
@@ -29,6 +31,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   private signToken(id: number, username: string) {
@@ -126,5 +129,28 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.newPassword, SALT_ROUNDS);
     await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  }
+
+  async uploadAvatar(userId: number, file: UploadedImageFile) {
+    const current = await this.prisma.user.findUnique({ where: { id: userId }, select: { avatarPublicId: true } });
+    const uploaded = await this.cloudinary.uploadImage(file.buffer, 'chatgram/users');
+    const profile = await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl: uploaded.url, avatarPublicId: uploaded.publicId },
+      select: PUBLIC_USER_SELECT,
+    });
+    await this.cloudinary.deleteImage(current?.avatarPublicId);
+    return profile;
+  }
+
+  async removeAvatar(userId: number) {
+    const current = await this.prisma.user.findUnique({ where: { id: userId }, select: { avatarPublicId: true } });
+    const profile = await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl: null, avatarPublicId: null },
+      select: PUBLIC_USER_SELECT,
+    });
+    await this.cloudinary.deleteImage(current?.avatarPublicId);
+    return profile;
   }
 }

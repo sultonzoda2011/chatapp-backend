@@ -24,6 +24,7 @@ model User {
   email        String   @unique
   passwordHash String   @map("password_hash")
   avatarUrl    String?  @map("avatar_url")
+  avatarPublicId String? @map("avatar_public_id")
   isOnline     Boolean  @default(false) @map("is_online")
   lastSeenAt   DateTime @default(now()) @map("last_seen_at")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -40,6 +41,7 @@ model Conversation {
   type      ConversationType
   name      String?
   avatarUrl String?          @map("avatar_url")
+  avatarPublicId String?     @map("avatar_public_id")
   creatorId Int?             @map("creator_id")
   creator   User?            @relation("ConversationCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   createdAt DateTime         @default(now()) @map("created_at")

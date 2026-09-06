@@ -6,7 +6,7 @@
 ## Запуск
 
 ```bash
-cp .env.example .env      # заполнить DATABASE_URL и JWT_SECRET
+cp .env.example .env      # заполнить DATABASE_URL, JWT_SECRET и Cloudinary variables
 npm install
 npx prisma migrate dev --name init
 npm run start:dev
@@ -22,11 +22,15 @@ Swagger: `http://localhost:5000/api-docs`
 - `POST /api/auth/login` `{username, password}`
 - `GET /api/auth/profile`
 - `PATCH /api/auth/profile`
+- `POST /api/auth/profile/avatar` multipart field `image` — загрузить аватар
+- `DELETE /api/auth/profile/avatar` — удалить аватар
 - `PATCH /api/auth/profile/change-password`
 - `GET /api/users/search?q=`
 - `GET /api/chat/conversations` — список чатов (личных и групповых) с последним сообщением
 - `POST /api/chat/conversations/direct/:userId` — получить/создать личный чат
-- `POST /api/chat/conversations/group` `{name, memberIds[]}` — создать группу
+- `POST /api/chat/conversations/group` `{name, memberIds[]}` или multipart `{name, memberIds, avatar}` — создать группу
+- `POST /api/chat/conversations/:id/avatar` multipart field `image` — заменить аватар группы
+- `DELETE /api/chat/conversations/:id/avatar` — удалить аватар группы
 - `POST /api/chat/conversations/:id/members` `{userId}` — добавить участника в группу
 - `GET /api/chat/conversations/:id/messages?cursor=&limit=` — история (пагинация курсором по id)
 - `POST /api/chat/conversations/:id/messages` `{content}` — отправить сообщение
@@ -54,5 +58,9 @@ Swagger: `http://localhost:5000/api-docs`
 Сообщения, отправленные через REST, тоже рассылаются в комнату разговора через тот же Gateway — REST и WS всегда синхронизированы.
 
 ## Примечание
+
+## Cloudinary image storage
+
+Добавьте в `.env` значения `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` и `CLOUDINARY_API_SECRET`. После обновления схемы примените `npx prisma migrate deploy` и выполните `npx prisma generate`. Разрешены JPEG, PNG, WEBP и GIF размером до 5 MB. Все upload endpoints требуют JWT и проверяют права владельца/администратора для group avatar.
 
 `npx prisma generate` качает бинарник движка Prisma с `binaries.prisma.sh` — команду нужно выполнить в вашей обычной среде с доступом в интернет (в песочнице, где собирался этот код, этот домен был недоступен, поэтому проверить генерацию клиента живьём не удалось, но остальной код проверен компилятором TypeScript).

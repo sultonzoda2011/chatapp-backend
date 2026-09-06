@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,7 +10,11 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { UploadedImageFile } from '../common/uploaded-file';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
@@ -41,9 +46,26 @@ export class ChatController {
   }
 
   @Post('conversations/group')
-  async createGroup(@CurrentUser() user: JwtPayload, @Body() dto: CreateGroupDto) {
+  @UseInterceptors(FileInterceptor('avatar'))
+  async createGroup(@CurrentUser() user: JwtPayload, @Body() dto: CreateGroupDto, @UploadedFile() file?: UploadedImageFile) {
     const data = await this.chatService.createGroup(user.sub, dto.name, dto.memberIds);
+    if (file) {
+      this.assertImage(file);
+      return ok('Group created successfully', await this.chatService.uploadGroupAvatar(data.id, user.sub, file));
+    }
     return ok('Group created successfully', data);
+  }
+
+  @Post('conversations/:id/avatar')
+  @UseInterceptors(FileInterceptor('image'))
+  async uploadGroupAvatar(@CurrentUser() user: JwtPayload, @Param('id', ParseIntPipe) conversationId: number, @UploadedFile() file?: UploadedImageFile) {
+    this.assertImage(file);
+    return ok('Group avatar uploaded successfully', await this.chatService.uploadGroupAvatar(conversationId, user.sub, file));
+  }
+
+  @Delete('conversations/:id/avatar')
+  async removeGroupAvatar(@CurrentUser() user: JwtPayload, @Param('id', ParseIntPipe) conversationId: number) {
+    return ok('Group avatar removed successfully', await this.chatService.removeGroupAvatar(conversationId, user.sub));
   }
 
   @Post('conversations/:id/members')
@@ -108,5 +130,12 @@ export class ChatController {
     const result = await this.chatService.deleteMessage(messageId, user.sub);
     this.chatGateway.broadcastMessageDeleted(result);
     return ok('Message deleted successfully');
+  }
+
+  private assertImage(file?: UploadedImageFile): asserts file is UploadedImageFile {
+    if (!file || !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) {
+      throw new BadRequestException('A JPEG, PNG, WEBP or GIF image is required');
+    }
+    if (file.size > 5 * 1024 * 1024) throw new BadRequestException('Image must be 5 MB or smaller');
   }
 }

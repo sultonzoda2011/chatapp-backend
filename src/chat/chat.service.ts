@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common'
 import { ConversationType, MemberRole } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { CloudinaryService } from '../common/cloudinary.service'
+import type { UploadedImageFile } from '../common/uploaded-file'
 
 const MEMBER_SELECT = {
 	select: {
@@ -24,7 +26,10 @@ const MEMBER_SELECT = {
 
 @Injectable()
 export class ChatService {
-	constructor(private readonly prisma: PrismaService) {}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly cloudinary: CloudinaryService
+	) {}
 
 	async assertMember(conversationId: number, userId: number) {
 		const member = await this.prisma.conversationMember.findUnique({
@@ -92,7 +97,30 @@ export class ChatService {
 				}
 			},
 			include: { members: MEMBER_SELECT }
-		})
+			})
+		}
+
+	async uploadGroupAvatar(conversationId: number, requesterId: number, file: UploadedImageFile) {
+		const requester = await this.assertMember(conversationId, requesterId)
+		if (requester.role === MemberRole.MEMBER) throw new ForbiddenException('Only owners or admins can change the group avatar')
+		const current = await this.prisma.conversation.findUnique({ where: { id: conversationId }, select: { type: true, avatarPublicId: true } })
+		if (!current) throw new NotFoundException('Conversation not found')
+		if (current.type !== ConversationType.GROUP) throw new ForbiddenException('Only groups can have a group avatar')
+		const uploaded = await this.cloudinary.uploadImage(file.buffer, 'chatgram/groups')
+		const conversation = await this.prisma.conversation.update({ where: { id: conversationId }, data: { avatarUrl: uploaded.url, avatarPublicId: uploaded.publicId }, include: { members: MEMBER_SELECT } })
+		await this.cloudinary.deleteImage(current.avatarPublicId)
+		return conversation
+	}
+
+	async removeGroupAvatar(conversationId: number, requesterId: number) {
+		const requester = await this.assertMember(conversationId, requesterId)
+		if (requester.role === MemberRole.MEMBER) throw new ForbiddenException('Only owners or admins can change the group avatar')
+		const current = await this.prisma.conversation.findUnique({ where: { id: conversationId }, select: { type: true, avatarPublicId: true } })
+		if (!current) throw new NotFoundException('Conversation not found')
+		if (current.type !== ConversationType.GROUP) throw new ForbiddenException('Only groups can have a group avatar')
+		const conversation = await this.prisma.conversation.update({ where: { id: conversationId }, data: { avatarUrl: null, avatarPublicId: null }, include: { members: MEMBER_SELECT } })
+		await this.cloudinary.deleteImage(current.avatarPublicId)
+		return conversation
 	}
 
 	async addMember(
@@ -114,18 +142,14 @@ export class ChatService {
 			throw new ForbiddenException('Only owners or admins can add members')
 		}
 
-		return this.prisma.conversationMember.upsert({
-			where: { conversationId_userId: { conversationId, userId: newUserId } },
-			create: { conversationId, userId: newUserId },
-			update: {}
-		})
+			return this.prisma.conversationMember.upsert({
+				where: { conversationId_userId: { conversationId, userId: newUserId } },
+				create: { conversationId, userId: newUserId },
+				update: {}
+			})
 	}
 
-	async removeMember(
-		conversationId: number,
-		requesterId: number,
-		userId: number
-	) {
+	async removeMember(conversationId: number, requesterId: number, userId: number) {
 		const requester = await this.assertMember(conversationId, requesterId)
 		if (requester.role === MemberRole.MEMBER) {
 			throw new ForbiddenException('Only owners or admins can remove members')
@@ -133,24 +157,19 @@ export class ChatService {
 
 		const conversation = await this.prisma.conversation.findUnique({
 			where: { id: conversationId },
-			include: { members: true }
+			include: { members: true },
 		})
 		if (!conversation) throw new NotFoundException('Conversation not found')
 		if (conversation.type !== ConversationType.GROUP) {
-			throw new ForbiddenException(
-				'Can only remove members from a group conversation'
-			)
+			throw new ForbiddenException('Can only remove members from a group conversation')
 		}
 
-		const target = conversation.members.find(member => member.userId === userId)
+		const target = conversation.members.find((member) => member.userId === userId)
 		if (!target) throw new NotFoundException('Member not found')
 		if (target.role === MemberRole.OWNER) {
 			throw new ForbiddenException('The group owner cannot be removed')
 		}
-		if (
-			requester.role === MemberRole.ADMIN &&
-			target.role === MemberRole.ADMIN
-		) {
+		if (requester.role === MemberRole.ADMIN && target.role === MemberRole.ADMIN) {
 			throw new ForbiddenException('Admins cannot remove other admins')
 		}
 
@@ -158,15 +177,15 @@ export class ChatService {
 		return { conversationId, userId }
 	}
 
-	async listConversations(userId: number) {
-		const conversations = await this.prisma.conversation.findMany({
-			where: {
-				members: { some: { userId } },
-				OR: [
-					{ type: ConversationType.GROUP },
-					{ type: ConversationType.DIRECT, messages: { some: {} } }
-				]
-			},
+		async listConversations(userId: number) {
+			const conversations = await this.prisma.conversation.findMany({
+				where: {
+					members: { some: { userId } },
+					OR: [
+						{ type: ConversationType.GROUP },
+						{ type: ConversationType.DIRECT, messages: { some: {} } },
+					],
+				},
 			include: {
 				members: MEMBER_SELECT,
 				messages: { orderBy: { createdAt: 'desc' }, take: 1 }

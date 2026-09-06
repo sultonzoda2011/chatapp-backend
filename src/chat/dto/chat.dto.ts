@@ -1,4 +1,5 @@
 import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateGroupDto {
   @IsString()
@@ -8,6 +9,7 @@ export class CreateGroupDto {
   @IsArray()
   @ArrayMinSize(1)
   @IsInt({ each: true })
+  @Transform(({ value }) => typeof value === 'string' ? JSON.parse(value) : value)
   memberIds!: number[];
 }
 

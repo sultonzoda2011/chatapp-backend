@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Patch, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { UploadedImageFile } from '../common/uploaded-file';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -47,5 +49,30 @@ export class AuthController {
   async changePassword(@CurrentUser() user: JwtPayload, @Body() dto: ChangePasswordDto) {
     await this.authService.changePassword(user.sub, dto);
     return ok('Password updated successfully');
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('profile/avatar')
+  @UseInterceptors(FileInterceptor('image'))
+  async uploadAvatar(@CurrentUser() user: JwtPayload, @UploadedFile() file?: UploadedImageFile) {
+    this.assertImage(file);
+    const data = await this.authService.uploadAvatar(user.sub, file);
+    return ok('Avatar uploaded successfully', data);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Delete('profile/avatar')
+  async removeAvatar(@CurrentUser() user: JwtPayload) {
+    const data = await this.authService.removeAvatar(user.sub);
+    return ok('Avatar removed successfully', data);
+  }
+
+  private assertImage(file?: UploadedImageFile): asserts file is UploadedImageFile {
+    if (!file || !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) {
+      throw new BadRequestException('A JPEG, PNG, WEBP or GIF image is required');
+    }
+    if (file.size > 5 * 1024 * 1024) throw new BadRequestException('Image must be 5 MB or smaller');
   }
 }
