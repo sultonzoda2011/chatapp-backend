@@ -1,4 +1,4 @@
-# Chatgram Backend (v2)
+# ChatGram Backend (v2)
 
 Переписан на: NestJS 12, Socket.IO 4.8, Prisma 7.10 + PostgreSQL, JWT-auth.
 Поддерживает личные (DIRECT) и групповые (GROUP) чаты через единую модель `Conversation`.

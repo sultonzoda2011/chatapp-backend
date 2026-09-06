@@ -1,7 +1,7 @@
 {
   "name": "chatgram-backend",
   "version": "2.0.0",
-  "description": "Chatgram backend — NestJS + Socket.IO + Prisma + PostgreSQL (direct & group chats)",
+  "description": "ChatGram backend — NestJS + Socket.IO + Prisma + PostgreSQL (direct & group chats)",
   "license": "ISC",
   "scripts": {
     "build": "nest build",
